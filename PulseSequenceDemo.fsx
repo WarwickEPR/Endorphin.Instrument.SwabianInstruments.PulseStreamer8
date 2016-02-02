@@ -15,16 +15,24 @@ open System.Collections.Generic
 open Newtonsoft.Json
 
 Async.Start <| async {
+    let acq = Channel.Channel0
+    let laser = Channel.Channel1
+    let uW = Channel.Channel2
+
     let pulses = seq {
-        yield {Channels = [Channel.Channel6]; Length = uint32 10; Analogue0 = single 0.0; Analogue1 = single 0.0}
-        yield {Channels = [Channel.None]; Length = uint32 6; Analogue0 = single 0.0; Analogue1 = single 0.0 }
-        yield {Channels = [Channel.Channel0]; Length = uint32 2; Analogue0 = single 0.0; Analogue1 = single 0.0} }
+        for i in 100u..10u..1000u do
+            yield Pulse.create          [uW]            10u
+            yield Pulse.createDelay                     i
+            yield Pulse.create          [uW]            20u
+            yield Pulse.createDelay                     i
+            yield Pulse.create          [uW]            10u
+            yield Pulse.create          [acq; laser]    1000u }
 
     let compiledSequence = compile pulses
 
     printfn "%A" compiledSequence
 
-    let! streamer = PulseStreamer.openDevice("http://192.168.21.1:4444/")//("http://www.raboof.com/projects/jayrock/demo.ashx")//
+    let! streamer = PulseStreamer.openDevice("http://192.168.21.1:4444/")
     do! PulseStreamer.PulseSequence.writeSequence compiledSequence 1u streamer
     do! PulseStreamer.close streamer
 }
