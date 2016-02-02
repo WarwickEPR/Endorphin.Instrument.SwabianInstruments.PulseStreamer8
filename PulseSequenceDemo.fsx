@@ -20,7 +20,7 @@ Async.Start <| async {
     let uW = Channel.Channel2
 
     let pulses = seq {
-        for i in 100u..10u..1000u do
+        for i in 1u..100u do
             yield Pulse.create          [uW]            10u
             yield Pulse.createDelay                     i
             yield Pulse.create          [uW]            20u
@@ -28,7 +28,10 @@ Async.Start <| async {
             yield Pulse.create          [uW]            10u
             yield Pulse.create          [acq; laser]    1000u }
 
-    let compiledSequence = compile pulses
+    let compiledSequence = pulses
+                           |> Pulse.Tools.applyDelay [acq; laser] 500u
+                           |> Pulse.Tools.collate
+                           |> compile
 
     printfn "%A" compiledSequence
 
