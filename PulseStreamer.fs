@@ -13,7 +13,7 @@ module PulseStreamer =
         | HasError message  -> Choice.fail (Exception message)
 
     let openDevice address = 
-        CommandRequestAgent.create (httpAddress >> sprintf "PulseStreamer8/2 %s") (fun () -> async {
+        CommandRequestAgent.create (httpAddress >> sprintf "PulseStreamer8/2 (%s)") (fun () -> async {
             let initialisationResponse = Interface.connectDevice address
             match initialisationResponse with 
                 | Success     -> return Choice.succeed {Address = address}
@@ -26,5 +26,5 @@ module PulseStreamer =
 
     module PulseSequence = 
         let writeSequence sequence iterations (PulseStreamer8 pulseStreamer) =
-            pulseStreamer |> CommandRequestAgent.performCommand ("Write sequence to device")
+            pulseStreamer |> CommandRequestAgent.performCommand (sprintf "Write sequence of length %d to device" <| Seq.length sequence)
                 (fun device -> Interface.writeSequence sequence iterations (httpAddress device) |> checkStatus)

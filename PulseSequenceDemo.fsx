@@ -33,9 +33,8 @@ Async.Start <| async {
                            |> Pulse.Tools.collate
                            |> compile
 
-    printfn "%A" compiledSequence
-
     let! streamer = PulseStreamer.openDevice("http://192.168.21.1:4444/")
     do! PulseStreamer.PulseSequence.writeSequence compiledSequence 1u streamer
     do! PulseStreamer.close streamer
+    printfn "complete"
 }
