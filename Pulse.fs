@@ -67,6 +67,7 @@ module Pulse =
             createStream sequence
             |> encode
 
+    [<AutoOpen>]
     module Tools = 
         /// fetch unique channels and remove None
         let internal getUniqueChannels channels = 
@@ -76,43 +77,41 @@ module Pulse =
 
         /// combine two pulse sequences assuming the same start time
         let rec combine (seq1 : list<PulseElement>) (seq2 : list<PulseElement>) (union: list<PulseElement>) = 
-            let result = 
-                match (List.tryHead seq1, List.tryHead seq2) with
-                | Some e1, Some e2 when e1.Length < e2.Length -> 
-                    let newUnion = 
-                        List.append 
-                        <| union 
-                        <| (List.singleton <| withChannels e1 (List.append e1.Channels e2.Channels))
-                    combine 
-                    <| (List.skip 1 seq1) 
-                    <| (List.append (List.singleton <| withLength e2 (e2.Length - e1.Length)) (List.skip 1 seq2)) 
-                    <| newUnion
-                | Some e1, Some e2 when e1.Length > e2.Length ->
-                    let newUnion = 
-                        List.append 
-                        <| union 
-                        <| (List.singleton <| withChannels e2 (List.append e1.Channels e2.Channels))
-                    combine 
-                    <| (List.append (List.singleton <| withLength e1 (e1.Length - e2.Length)) (List.skip 1 seq1)) 
-                    <| (List.skip 1 seq2)  
-                    <| newUnion  
-                | Some e1, Some e2 ->
-                    let newUnion = 
-                        List.append 
-                        <| union 
-                        <| (List.singleton <| withChannels e1 (List.append e1.Channels e2.Channels))
-                    combine (List.skip 1 seq1) (List.skip 1 seq2) newUnion
-                | Some e1, None ->
-                    List.append
-                    <| union
-                    <| seq1
-                | None, Some e2 ->
-                    List.append
-                    <| union
-                    <| seq2
-                | None, None ->
-                    union
-            result
+            match (List.tryHead seq1, List.tryHead seq2) with
+            | Some e1, Some e2 when e1.Length < e2.Length -> 
+                let newUnion = 
+                    List.append 
+                    <| union 
+                    <| (List.singleton <| withChannels e1 (List.append e1.Channels e2.Channels))
+                combine 
+                <| (List.skip 1 seq1) 
+                <| (List.append (List.singleton <| withLength e2 (e2.Length - e1.Length)) (List.skip 1 seq2)) 
+                <| newUnion
+            | Some e1, Some e2 when e1.Length > e2.Length ->
+                let newUnion = 
+                    List.append 
+                    <| union 
+                    <| (List.singleton <| withChannels e2 (List.append e1.Channels e2.Channels))
+                combine 
+                <| (List.append (List.singleton <| withLength e1 (e1.Length - e2.Length)) (List.skip 1 seq1)) 
+                <| (List.skip 1 seq2)  
+                <| newUnion  
+            | Some e1, Some e2 ->
+                let newUnion = 
+                    List.append 
+                    <| union 
+                    <| (List.singleton <| withChannels e1 (List.append e1.Channels e2.Channels))
+                combine (List.skip 1 seq1) (List.skip 1 seq2) newUnion
+            | Some e1, None ->
+                List.append
+                <| union
+                <| seq1
+            | None, Some e2 ->
+                List.append
+                <| union
+                <| seq2
+            | None, None ->
+                union
 
         /// merge neighbouring pulses which have the same active channels and remove zero-length elements
         let collate (pulseSequence : PulseSequence) = 
@@ -132,7 +131,7 @@ module Pulse =
                         <| List.singleton (withChannels element <| getUniqueChannels element.Channels)
                         <| state
                 | None -> List.singleton (withChannels element <| getUniqueChannels element.Channels)
-                | _    -> state ) (Seq.toList pulseSequence) List.empty<PulseElement>
+                | _    -> state ) (Seq.toList pulseSequence) []
             |> List.toSeq
 
         /// apply the given delay to several channels. currently doesn't pay attention to analogue outputs
@@ -161,7 +160,7 @@ module Pulse =
                             List.append
                             <| List.singleton element
                             <| fst state
-                        (mainSequence, delayedSequence) ) sequence (List.empty<PulseElement>, List.empty<PulseElement>)
+                        (mainSequence, delayedSequence) ) sequence ([], [])
 
             // generate a main sequence (containing none of the delay channels) and a list of delay channel sequences
             let (mainSequence, delayedSequences) = 
@@ -174,7 +173,7 @@ module Pulse =
             let delayedSequence =  
                 delayedSequences 
                 |> List.fold (fun combinedDelayedSequence delayedSequence ->
-                    combine combinedDelayedSequence delayedSequence List.empty<PulseElement>) List.empty<PulseElement>
+                    combine combinedDelayedSequence delayedSequence []) []
 
             // delay primary sequence
             let mainSequence = List.append 
@@ -182,4 +181,4 @@ module Pulse =
                                 <| mainSequence
 
             // combine main and delayed sequences
-            List.toSeq (combine mainSequence delayedSequence List.empty<PulseElement>)
+            List.toSeq (combine mainSequence delayedSequence [])
