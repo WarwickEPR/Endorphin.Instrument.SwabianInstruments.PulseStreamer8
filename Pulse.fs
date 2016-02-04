@@ -120,6 +120,6 @@ module Pulse =
             let delayedChannels  = channels >> List.filter isDelayChannel 
             let otherChannels    = channels >> List.filter (not << isDelayChannel)
 
-            let delayed = ps |> List.map (fun p -> p |> withChannels (delayedChannels p))
-            let other   = (createDelay delay) :: (ps |> List.map (fun p -> p |> withChannels (otherChannels p)))
+            let delayed = (createDelay delay) :: (ps |> List.map (fun p -> p |> withChannels (delayedChannels p)))
+            let other   = ps |> List.map (fun p -> p |> withChannels (otherChannels p))
             unionParallel other delayed
