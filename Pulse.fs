@@ -10,7 +10,7 @@ module Pulse =
           Analogue0 : single
           Analogue1 : single }
 
-    type PulseSequence = PulseElement list
+    type PulseSequence = PulseElement seq
 
     /// creation functions
     let create channels length = 
@@ -48,78 +48,82 @@ module Pulse =
     module Compile = 
 
         /// create a bytestream from the given pulse sequence
-        let internal createStream (sequence : PulseSequence) =
+        let internal createStream (ps : PulseSequence) =
             let uint32ToBigEndian (x : uint32) = Conversion.EndianBitConverter.Big.GetBytes x
             let singleToBigEndian (x : single) = Conversion.EndianBitConverter.Big.GetBytes x
 
-            sequence
-            |> Seq.fold (fun (byteSequence : seq<byte[]>) pulseElement -> 
-                let bArray : byte[] = Array.zeroCreate 13
-                bArray.[0]     <- pulseElement.Channels |> Parse.channelMask |> byte
-                bArray.[1..4]  <- uint32ToBigEndian pulseElement.Length
-                bArray.[5..8]  <- singleToBigEndian pulseElement.Analogue0
-                bArray.[9..12] <- singleToBigEndian pulseElement.Analogue1
-                Seq.append byteSequence (Seq.singleton bArray)) Seq.empty<byte[]>
+            ps
+            |> Seq.map (fun p -> 
+                let bytes = Array.zeroCreate 13
+                bytes.[0]     <- p.Channels |> Parse.channelMask |> byte
+                bytes.[1..4]  <- uint32ToBigEndian p.Length
+                bytes.[5..8]  <- singleToBigEndian p.Analogue0
+                bytes.[9..12] <- singleToBigEndian p.Analogue1
+                bytes)
             |> Array.concat
 
         /// encode a bytestream to base64
         let internal encode stream = System.Convert.ToBase64String stream
 
         /// compile a pulse sequence to the base64 string representation required by the PulseStreamer
-        let compile = createStream >> encode
+        let compile ps = createStream ps |> encode
 
     [<AutoOpen>]
     module Transform =
 
-        /// combine two pulse sequences assuming the same start time using the given mapping function to combine elements
-        let mapParallel map (first : PulseSequence) (second : PulseSequence) =
+        let rec mapParallel mapping (first : PulseSequence) (second : PulseSequence) = seq {
             let subtractLength l p = p |> withLength (length p - l)
+            let cons x xs = Seq.append (Seq.singleton x) xs
 
-            let rec loop list1 list2 acc = 
-                match list1, list2 with
-                | p1 :: tail1, p2 :: tail2 when length p1 < length p2 ->
-                    let p'     = map p1 p2
-                    let list2' = (p2 |> subtractLength (length p1)) :: tail2
-                    loop tail1 list2' (p' :: acc)
+            match Seq.tryHead first, Seq.tryHead second with
+            | Some p1, Some p2 when length p1 < length p2 ->
+                let residual = p2 |> subtractLength (length p1)
+                yield mapping p1 p2 |> withLength (length p1)
+                yield! mapParallel mapping (Seq.tail first) (cons residual (Seq.tail second))
                 
-                | p1 :: tail1, p2 :: tail2 when length p1 > length p2 ->
-                    let p'     = map p1 p2
-                    let list1' = (p1 |> subtractLength (length p2)) :: tail1
-                    loop list1' tail2 (p' :: acc)
-
-                | p1 :: tail1, p2 :: tail2 ->
-                    let p' = map p1 p2
-                    loop tail1 tail2 (p' :: acc)
-
-                | p :: tail, []        -> loop tail [] (p :: acc)
-                | [],        p :: tail -> loop [] tail (p :: acc)
-                | [],        []        -> acc
-
-            loop first second [] |> List.rev
+            | Some p1, Some p2 when length p2 < length p1 ->
+                let residual = p1 |> subtractLength (length p2)
+                yield mapping p1 p2 |> withLength (length p2)
+                yield! mapParallel mapping (cons residual (Seq.tail first)) (Seq.tail second)
+                
+            | Some p1, Some p2 ->
+                yield mapping p1 p2 
+                yield! mapParallel mapping (Seq.tail first) (Seq.tail second)
+                
+            | Some _, None    -> yield! first  |> Seq.map (fun p -> mapping p (createDelay (length p)))
+            | None,    Some _ -> yield! second |> Seq.map (fun p -> mapping (createDelay (length p)) p)
+            | None,    None   -> () }
 
         /// combine two pulse sequences assuming the same start time and taking the union of the set channels at each element,
         /// whilst keeping the analogue values from the first sequence
         let unionParallel = mapParallel (fun p1 p2 -> p1 |> unionChannels (channels p2))
 
         /// merge neighbouring pulses which have the same active channels and remove zero-length elements
-        let collate (ps : PulseSequence) = 
+        let rec collate (ps : PulseSequence) = seq {
             let areSimilar p1 p2 = ((p1 |> withLength 0u) = (p2 |> withLength 0u))
-            
-            let rec loop xs acc =
-                match xs with
-                | p1 :: p2 :: tail when areSimilar p1 p2 -> loop tail ((p1 |> withLength (length p1 + length p2)) :: acc)
-                | p :: tail        when length p = 0u    -> loop tail acc
-                | p :: tail                              -> loop tail (p :: acc)
-                | []                                     -> acc
-
-            loop ps [] |> List.rev
-
+            match Seq.tryHead ps with
+            | Some p when length p = 0u -> yield! Seq.tail ps
+            | Some p1 ->
+                let ps' = Seq.tail ps
+                match Seq.tryHead ps' with
+                | Some p2 when areSimilar p1 p2 ->
+                    yield p1 |> withLength (length p1 + length p2)
+                    yield! Seq.tail ps'
+                | _ ->
+                    yield p1
+                    yield! ps'
+            | None -> () }
+                
         /// apply the given delay to several channels. currently doesn't pay attention to analogue outputs
         let delayChannels channelsToDelay (delay : uint32) (ps : PulseSequence) =
             let isDelayChannel c = Set.ofList channelsToDelay |> Set.contains c
             let delayedChannels  = channels >> List.filter isDelayChannel 
             let otherChannels    = channels >> List.filter (not << isDelayChannel)
 
-            let delayed = (createDelay delay) :: (ps |> List.map (fun p -> p |> withChannels (delayedChannels p)))
-            let other   = ps |> List.map (fun p -> p |> withChannels (otherChannels p))
+            let delayed = 
+                Seq.append 
+                <| (Seq.singleton <| createDelay delay)
+                <| (ps |> Seq.map (fun p -> p |> withChannels (delayedChannels p)))
+            
+            let other   = ps |> Seq.map (fun p -> p |> withChannels (otherChannels p))
             unionParallel other delayed
