@@ -28,3 +28,12 @@ module Model =
         | Channel5
         | Channel6
         | Channel7
+
+    type Sample = 
+        internal { Channels  : Set<Channel>
+                   Analogue0 : single
+                   Analogue1 : single}
+
+    type PulseElement = internal { Sample : Sample ; Length : uint32 }
+
+    type PulseSequence = PulseElement seq

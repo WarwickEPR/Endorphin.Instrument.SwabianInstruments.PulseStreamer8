@@ -20,27 +20,22 @@ Async.Start <| async {
     let uW = Channel.Channel2
 
     let pulse = seq {
-        yield Pulse.create      [uW]            100u
-        yield Pulse.create      [acq; laser]    5u
-        yield Pulse.create      [laser]         25u
-    }
+        yield Sample.create [uW]         |> Pulse.create 100u
+        yield Sample.create [acq; laser] |> Pulse.create 5u
+        yield Sample.create [laser]      |> Pulse.create 25u }
 
     let pulses = seq {
         for i in 1u..100u do
-            yield Pulse.create          [uW]            10u
-            yield Pulse.createDelay                     i
-            yield Pulse.create          [uW]            20u
-            yield Pulse.createDelay                     i
-            yield Pulse.create          [uW]            10u
-            yield Pulse.create          [acq; laser]    1000u }
+            yield Sample.create [uW]         |> Pulse.create 10u
+            yield Sample.empty               |> Pulse.create i
+            yield Sample.create [uW]         |> Pulse.create 20u
+            yield Sample.empty               |> Pulse.create i
+            yield Sample.create [uW]         |> Pulse.create 10u
+            yield Sample.create [acq; laser] |> Pulse.create 1000u }
 
-    let compiledSequence = pulses
-                           |> List.ofSeq
-                           |> Pulse.Transform.compensateHardwareDelays [acq; laser] 20u
-                           |> Pulse.Transform.collate
+    let compiledSequence = pulses |> Pulse.Transform.compensateHardwareDelays [acq; laser] 20u
 
     let! streamer = PulseStreamer.openDevice("http://192.168.21.1:4444/")
     do! PulseStreamer.PulseSequence.writeSequence compiledSequence 1u streamer
     do! PulseStreamer.close streamer
-    printfn "complete"
-}
+    printfn "complete" }
