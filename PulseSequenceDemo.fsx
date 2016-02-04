@@ -19,6 +19,12 @@ Async.Start <| async {
     let laser = Channel.Channel1
     let uW = Channel.Channel2
 
+    let pulse = seq {
+        yield Pulse.create      [uW]            100u
+        yield Pulse.create      [acq; laser]    5u
+        yield Pulse.create      [laser]         25u
+    }
+
     let pulses = seq {
         for i in 1u..100u do
             yield Pulse.create          [uW]            10u
@@ -29,9 +35,9 @@ Async.Start <| async {
             yield Pulse.create          [acq; laser]    1000u }
 
     let compiledSequence = pulses
-                           |> Pulse.Tools.applyDelay [acq; laser] 500u
-                           |> Pulse.Tools.collate
-                           |> compile
+                           |> List.ofSeq
+                           |> Pulse.Transform.compensateHardwareDelays [acq; laser] 20u
+                           |> Pulse.Transform.collate
 
     let! streamer = PulseStreamer.openDevice("http://192.168.21.1:4444/")
     do! PulseStreamer.PulseSequence.writeSequence compiledSequence 1u streamer

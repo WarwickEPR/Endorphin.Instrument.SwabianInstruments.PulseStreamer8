@@ -69,7 +69,8 @@ module Interface =
         |> postToAddress address
         |> deserialiseResponse<string, string>
 
-    let writeSequence (sequence : string) (iterations : uint32) address = 
+    let writeSequence sequence (iterations : uint32) address = 
+        let encodedSequence = Pulse.Encode.encode sequence
         createRequest "sequence" (sequence, 0u, 0.0f, 0.0f, iterations)
         |> postToAddress address
         |> deserialiseResponse<string, string>

@@ -5,12 +5,12 @@ open MiscUtil
 module Pulse =
 
     type PulseElement = 
-        { Channels  : Set<Channel>
-          Length    : uint32
-          Analogue0 : single
-          Analogue1 : single }
+        internal { Channels  : Set<Channel>
+                   Length    : uint32
+                   Analogue0 : single
+                   Analogue1 : single }
 
-    type PulseSequence = PulseElement seq
+    type PulseSequence = PulseElement list
 
     /// creation functions
     let create channels length = 
@@ -45,85 +45,79 @@ module Pulse =
     let containsChannel channel pulse = pulse.Channels |> Set.contains channel
 
     [<AutoOpen>]
-    module Compile = 
-
+    module Encode = 
         /// create a bytestream from the given pulse sequence
-        let internal createStream (ps : PulseSequence) =
+        let internal encode (ps : PulseSequence) =
             let uint32ToBigEndian (x : uint32) = Conversion.EndianBitConverter.Big.GetBytes x
             let singleToBigEndian (x : single) = Conversion.EndianBitConverter.Big.GetBytes x
-
+ 
             ps
             |> Seq.map (fun p -> 
                 let bytes = Array.zeroCreate 13
-                bytes.[0]     <- p.Channels |> Parse.channelMask |> byte
-                bytes.[1..4]  <- uint32ToBigEndian p.Length
-                bytes.[5..8]  <- singleToBigEndian p.Analogue0
-                bytes.[9..12] <- singleToBigEndian p.Analogue1
+                bytes.[0]     <- p.Channels  |> Parse.channelMask |> byte
+                bytes.[1..4]  <- p.Length    |> uint32ToBigEndian
+                bytes.[5..8]  <- p.Analogue0 |> singleToBigEndian
+                bytes.[9..12] <- p.Analogue1 |> singleToBigEndian
                 bytes)
             |> Array.concat
-
-        /// encode a bytestream to base64
-        let internal encode stream = System.Convert.ToBase64String stream
-
-        /// compile a pulse sequence to the base64 string representation required by the PulseStreamer
-        let compile ps = createStream ps |> encode
+            |> System.Convert.ToBase64String
 
     [<AutoOpen>]
     module Transform =
-
-        let rec mapParallel mapping (first : PulseSequence) (second : PulseSequence) = seq {
+       /// combine two pulse sequences assuming the same start time using the given mapping function to combine elements
+        let mapParallel map (first : PulseSequence) (second : PulseSequence) =
             let subtractLength l p = p |> withLength (length p - l)
-            let cons x xs = Seq.append (Seq.singleton x) xs
 
-            match Seq.tryHead first, Seq.tryHead second with
-            | Some p1, Some p2 when length p1 < length p2 ->
-                let residual = p2 |> subtractLength (length p1)
-                yield mapping p1 p2 |> withLength (length p1)
-                yield! mapParallel mapping (Seq.tail first) (cons residual (Seq.tail second))
+            let rec loop list1 list2 acc = 
+                match list1, list2 with
+                | p1 :: tail1, p2 :: tail2 when length p1 < length p2 ->
+                    let p' = map p1 p2 |> withLength (length p1)
+                    let list2' = (p2 |> subtractLength (length p1)) :: tail2
+                    loop tail1 list2' (p' :: acc)
                 
-            | Some p1, Some p2 when length p2 < length p1 ->
-                let residual = p1 |> subtractLength (length p2)
-                yield mapping p1 p2 |> withLength (length p2)
-                yield! mapParallel mapping (cons residual (Seq.tail first)) (Seq.tail second)
-                
-            | Some p1, Some p2 ->
-                yield mapping p1 p2 
-                yield! mapParallel mapping (Seq.tail first) (Seq.tail second)
-                
-            | Some _, None    -> yield! first  |> Seq.map (fun p -> mapping p (createDelay (length p)))
-            | None,    Some _ -> yield! second |> Seq.map (fun p -> mapping (createDelay (length p)) p)
-            | None,    None   -> () }
+                | p1 :: tail1, p2 :: tail2 when length p1 > length p2 ->
+                    let p' = map p1 p2 |> withLength (length p2)
+                    let list1' = (p1 |> subtractLength (length p2)) :: tail1
+                    loop list1' tail2 (p' :: acc)
+
+                | p1 :: tail1, p2 :: tail2 ->
+                    let p' = map p1 p2
+                    loop tail1 tail2 (p' :: acc)
+
+                | p :: tail, []        -> loop tail [] (p :: acc)
+                | [],        p :: tail -> loop [] tail (p :: acc)
+                | [],        []        -> acc
+
+            loop first second [] |> List.rev
 
         /// combine two pulse sequences assuming the same start time and taking the union of the set channels at each element,
         /// whilst keeping the analogue values from the first sequence
         let unionParallel = mapParallel (fun p1 p2 -> p1 |> unionChannels (channels p2))
 
         /// merge neighbouring pulses which have the same active channels and remove zero-length elements
-        let rec collate (ps : PulseSequence) = seq {
+        let collate (ps : PulseSequence) = 
             let areSimilar p1 p2 = ((p1 |> withLength 0u) = (p2 |> withLength 0u))
-            match Seq.tryHead ps with
-            | Some p when length p = 0u -> yield! Seq.tail ps
-            | Some p1 ->
-                let ps' = Seq.tail ps
-                match Seq.tryHead ps' with
-                | Some p2 when areSimilar p1 p2 ->
-                    yield p1 |> withLength (length p1 + length p2)
-                    yield! Seq.tail ps'
-                | _ ->
-                    yield p1
-                    yield! ps'
-            | None -> () }
-                
-        /// apply the given delay to several channels. currently doesn't pay attention to analogue outputs
-        let delayChannels channelsToDelay (delay : uint32) (ps : PulseSequence) =
-            let isDelayChannel c = Set.ofList channelsToDelay |> Set.contains c
-            let delayedChannels  = channels >> List.filter isDelayChannel 
-            let otherChannels    = channels >> List.filter (not << isDelayChannel)
 
-            let delayed = 
-                Seq.append 
-                <| (Seq.singleton <| createDelay delay)
-                <| (ps |> Seq.map (fun p -> p |> withChannels (delayedChannels p)))
-            
-            let other   = ps |> Seq.map (fun p -> p |> withChannels (otherChannels p))
-            unionParallel other delayed
+            let rec loop xs (accHead, accTail) =
+                match xs, accHead with
+                | p :: tail, _       when length p = 0u   -> loop tail (accHead, accTail)
+                | p :: tail, Some p' when areSimilar p p' -> loop tail (Some (p |> withLength (length p + length p')), accTail)
+                | p :: tail, Some p'                      -> loop tail (Some p, p' :: accTail)
+                | p :: tail, None                         -> loop tail (Some p, accTail)
+                | [], Some p'                             -> p' :: accTail
+                | [], None                                -> accTail
+
+            loop ps (None, []) |> List.rev
+
+        /// apply the given delay to several channels. currently doesn't pay attention to analogue outputs
+        let compensateHardwareDelays channelsWithDelay (delay : uint32) (ps : PulseSequence) =
+            // a hardware delay (i.e. the hardware takes a long time to switch) is compensated for
+            // by delaying the *other* channels in the sequence, having the effect of bringing the 
+            // hardware delay channels forward in time.
+            let isChannelWithHardwareDelay c = Set.ofList channelsWithDelay |> Set.contains c
+            let channelsWithHardwareDelay    = channels >> List.filter isChannelWithHardwareDelay 
+            let channelsWithoutHardwareDelay = channels >> List.filter (not << isChannelWithHardwareDelay)
+
+            let delayedInSequence = (createDelay delay) :: (ps |> List.map (fun p -> p |> withChannels (channelsWithoutHardwareDelay p)))
+            let other   = ps |> List.map (fun p -> p |> withChannels (channelsWithHardwareDelay p))
+            unionParallel other delayedInSequence

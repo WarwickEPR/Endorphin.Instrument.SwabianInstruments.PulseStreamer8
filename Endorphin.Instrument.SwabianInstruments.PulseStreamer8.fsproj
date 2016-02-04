@@ -52,9 +52,9 @@
   <ItemGroup>
     <Compile Include="Model.fs" />
     <Compile Include="LowercaseJsonSerializer.fs" />
-    <Compile Include="Interface.fs" />
     <Compile Include="Parsing.fs" />
     <Compile Include="Pulse.fs" />
+    <Compile Include="Interface.fs" />
     <Compile Include="PulseStreamer.fs" />
     <None Include="PulseSequenceDemo.fsx" />
     <Content Include="packages.config" />
