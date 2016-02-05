@@ -20,18 +20,18 @@ Async.Start <| async {
     let uW = Channel.Channel2
 
     let pulse = seq {
-        yield Sample.create [uW]         |> Pulse.create 100u
-        yield Sample.create [acq; laser] |> Pulse.create 5u
-        yield Sample.create [laser]      |> Pulse.create 25u }
+        yield Pulse.create      [uW]                100u
+        yield Pulse.create      [acq; laser]        5u
+        yield Pulse.create      [laser]             25u }
 
     let pulses = seq {
         for i in 1u..100u do
-            yield Sample.create [uW]         |> Pulse.create 10u
-            yield Sample.empty               |> Pulse.create i
-            yield Sample.create [uW]         |> Pulse.create 20u
-            yield Sample.empty               |> Pulse.create i
-            yield Sample.create [uW]         |> Pulse.create 10u
-            yield Sample.create [acq; laser] |> Pulse.create 1000u }
+            yield Pulse.create  [uW]                10u
+            yield Pulse.empty                       i
+            yield Pulse.create  [uW]                20u
+            yield Pulse.empty                       i
+            yield Pulse.create  [uW]                10u
+            yield Pulse.create  [acq; laser]        1000u }
 
     let compiledSequence = pulses |> Pulse.Transform.compensateHardwareDelays [acq; laser] 20u
 

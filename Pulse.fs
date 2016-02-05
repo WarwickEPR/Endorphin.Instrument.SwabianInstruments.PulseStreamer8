@@ -2,7 +2,7 @@
 
 open MiscUtil
 
-module Sample =
+module internal Sample =
 
     let empty = { Channels = Set.empty ; Analogue0 = 0.0f ; Analogue1 = 0.0f }
     
@@ -34,7 +34,11 @@ module Sample =
 module Pulse =
 
     /// creation functions
-    let create length sample = { Sample = sample ; Length = length}
+    let create channels length = { Sample = (Sample.create channels); Length = length}
+
+    let internal createWithSample length sample = { Sample = sample; Length = length}
+
+    let empty length = { Sample = Sample.empty; Length = length }
 
     /// modification functions
     let withSample sample pulse = { pulse with Sample = sample }
@@ -42,9 +46,11 @@ module Pulse =
     let withLength length pulse = { pulse with Length = length }  
 
     /// query functions
-    let sample pulse = pulse.Sample
+    let internal sample pulse = pulse.Sample
 
     let length pulse = pulse.Length
+
+    let sequenceLength (pulseSequence : PulseSequence) = Seq.fold (fun length pulse -> length + (uint64 pulse.Length)) (uint64 0) pulseSequence
 
     [<AutoOpen>]
     module Encode = 
@@ -108,24 +114,24 @@ module Pulse =
                 match p1, p2 with
                 | Some p1', Some p2' when length p1' < length p2' ->
                     let residual2' = p2' |> subtractLength (length p1')
-                    yield mapping (sample p1') (sample p2') |> create (length p1')
+                    yield mapping (sample p1') (sample p2') |> createWithSample (length p1')
                     yield! loop (None, iterator1) (Some residual2', iterator2)
                 
                 | Some p1', Some p2' when length p2' < length p1' ->
                     let residual1' = p1' |> subtractLength (length p2')
-                    yield mapping (sample p1') (sample p2') |> create (length p2')
+                    yield mapping (sample p1') (sample p2') |> createWithSample (length p2')
                     yield! loop (Some residual1', iterator1) (None, iterator2)
 
                 | Some p1', Some p2' ->
-                    yield mapping (sample p1') (sample p2') |> create (length p1')
+                    yield mapping (sample p1') (sample p2') |> createWithSample (length p1')
                     yield! loop (None, iterator1) (None, iterator2)
 
                 | Some p1', None -> 
-                    yield mapping (sample p1') Sample.empty |> create (length p1')
+                    yield mapping (sample p1') Sample.empty |> createWithSample (length p1')
                     yield! loop (None, iterator1) (None, iterator2)
                 
                 | None, Some p2' ->
-                    yield mapping Sample.empty (sample p2') |> create (length p2')
+                    yield mapping Sample.empty (sample p2') |> createWithSample (length p2')
                     yield! loop (None, iterator1) (None, iterator2)
 
                 | None, None -> () }
@@ -146,7 +152,7 @@ module Pulse =
             let softwareDelayedPart p = p |> withSample (sample p |> Sample.filterChannels (not << isChannelWithHardwareDelay))
 
             let delayedInSoftware = seq {
-                yield Sample.empty |> create delay
+                yield Sample.empty |> createWithSample delay
                 yield! ps |> Seq.map softwareDelayedPart }
 
             let delayedInHardware = ps |> Seq.map hardwareDelayedPart
