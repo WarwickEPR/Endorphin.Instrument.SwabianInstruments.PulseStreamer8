@@ -136,10 +136,7 @@ module Pulse =
 
                 | None, None -> () }
 
-            loop (None, Iterator.ofSeq first) (None, Iterator.ofSeq second)
-            |> collate
-            |> List.ofSeq
-            |> Seq.ofList
+            (fun () -> loop (None, Iterator.ofSeq first) (None, Iterator.ofSeq second) |> collate) |> Seq.delay
 
         /// combine two pulse sequences assuming the same start time and taking the union of the set channels at each element,
         /// whilst keeping the analogue values from the first sequence

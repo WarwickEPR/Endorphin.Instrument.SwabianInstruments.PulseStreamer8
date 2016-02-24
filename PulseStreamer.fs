@@ -29,3 +29,8 @@ module PulseStreamer =
         let writeSequence sequence iterations finalState errorState (PulseStreamer8 pulseStreamer) =
             pulseStreamer |> CommandRequestAgent.performCommand (sprintf "Write sequence of length %d to device" <| Seq.length sequence)
                 (fun device -> Interface.writeSequence sequence iterations finalState errorState (httpAddress device) |> checkStatus)
+
+        let setState channels (PulseStreamer8 pulseStreamer) = 
+            pulseStreamer |> CommandRequestAgent.performCommand (sprintf "Setting state of pulseStreamer")
+               ( let state = Pulse.create channels 1u
+                 fun device -> Interface.writeSequence (Seq.singleton state) 0u state state (httpAddress device) |> checkStatus )
