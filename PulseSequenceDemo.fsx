@@ -19,23 +19,21 @@ Async.Start <| async {
     let laser = Channel.Channel1
     let uW = Channel.Channel2
 
-    let pulse = seq {
-        yield Pulse.create      [uW]                100u
-        yield Pulse.create      [acq; laser]        5u
-        yield Pulse.create      [laser]             25u }
+    let pulse = seq { 
+        yield Pulse.create      [acq]               10u
+        yield Pulse.empty                           30u
+        yield Pulse.create      [laser]             20u
+        yield Pulse.create      [acq; laser]        20u
+        yield Pulse.empty                           300u }
 
-    let pulses = seq {
-        for i in 1u..100u do
-            yield Pulse.create  [uW]                10u
-            yield Pulse.empty                       i
-            yield Pulse.create  [uW]                20u
-            yield Pulse.empty                       i
-            yield Pulse.create  [uW]                10u
-            yield Pulse.create  [acq; laser]        1000u }
+    let stop = seq {
+        yield Pulse.empty                           1u
+        }
 
-    let compiledSequence = pulses |> Pulse.Transform.compensateHardwareDelays [acq; laser] 20u
+    let finalState = Pulse.create [acq] 1000u
+    let errorState = Pulse.empty 0u
 
-    let! streamer = PulseStreamer.openDevice("http://192.168.21.1:4444/")
-    do! PulseStreamer.PulseSequence.writeSequence compiledSequence 1u streamer
-    do! PulseStreamer.close streamer
-    printfn "complete" }
+    let! streamer = PulseStreamer.openDevice("http://192.168.1.100:8050/json-rpc")
+    //do! PulseStreamer.PulseSequence.writeSequence pulse 10u finalState errorState streamer 
+    do! PulseStreamer.PulseSequence.writeSequence stop 10u finalState errorState streamer
+}

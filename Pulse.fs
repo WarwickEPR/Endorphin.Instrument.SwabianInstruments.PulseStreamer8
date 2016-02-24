@@ -4,9 +4,9 @@ open MiscUtil
 
 module internal Sample =
 
-    let empty = { Channels = Set.empty ; Analogue0 = 0.0f ; Analogue1 = 0.0f }
+    let empty = { Channels = Set.empty ; Analogue0 = 0s ; Analogue1 = 0s }
     
-    let create channels = { Channels = Set.ofList channels ; Analogue0 = 0.0f ; Analogue1 = 0.0f }
+    let create channels = { Channels = Set.ofList channels ; Analogue0 = 0s ; Analogue1 = 0s }
 
     let createWithAnalogue channels analogue0 analogue1 = 
         { Channels = Set.ofList channels ; Analogue0 = analogue0 ; Analogue1 = analogue1 }
@@ -57,15 +57,15 @@ module Pulse =
         /// create a bytestream from the given pulse sequence
         let internal encode (ps : PulseSequence) =
             let uint32ToBigEndian (x : uint32) = Conversion.EndianBitConverter.Big.GetBytes x
-            let singleToBigEndian (x : single) = Conversion.EndianBitConverter.Big.GetBytes x
+            let shortToBigEndian  (x : int16)  = Conversion.EndianBitConverter.Big.GetBytes x
  
             ps
             |> Seq.map (fun p -> 
-                let bytes = Array.zeroCreate 13
-                bytes.[0]     <- sample p |> Sample.channels |> Parse.channelMask |> byte
-                bytes.[1..4]  <- length p |> uint32ToBigEndian
-                bytes.[5..8]  <- sample p |> Sample.analogue0 |> singleToBigEndian
-                bytes.[9..12] <- sample p |> Sample.analogue1 |> singleToBigEndian
+                let bytes = Array.zeroCreate 9
+                bytes.[0..3] <- length p |> uint32ToBigEndian
+                bytes.[4]    <- sample p |> Sample.channels |> Parse.channelMask |> byte
+                bytes.[5..6] <- sample p |> Sample.analogue0 |> shortToBigEndian
+                bytes.[7..8] <- sample p |> Sample.analogue1 |> shortToBigEndian
                 bytes)
             |> Array.concat
             |> System.Convert.ToBase64String

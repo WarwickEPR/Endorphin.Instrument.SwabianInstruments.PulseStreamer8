@@ -31,8 +31,8 @@ module Model =
 
     type Sample = 
         internal { Channels  : Set<Channel>
-                   Analogue0 : single
-                   Analogue1 : single}
+                   Analogue0 : int16
+                   Analogue1 : int16 }
 
     type PulseElement = internal { Sample : Sample ; Length : uint32 }
 
