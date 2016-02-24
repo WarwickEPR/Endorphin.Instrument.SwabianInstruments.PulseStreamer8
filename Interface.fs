@@ -71,9 +71,10 @@ module Interface =
         |> deserialiseResponse<string, string>
 
     let writeSequence sequence (iterations : uint32) finalState errorState address = 
+        printfn "Sequence length: %d" <| Seq.length sequence
         let encodedSequence = Pulse.Encode.encode sequence
 
-        createRequest "Sequence" ( encodedSequence, 
+        createRequest "stream" ( encodedSequence, 
                                    iterations, 
                                    (finalState.Length, ((Parse.channelMask finalState.Sample.Channels) |> byte), finalState.Sample.Analogue0, finalState.Sample.Analogue1), 
                                    (errorState.Length, ((Parse.channelMask errorState.Sample.Channels) |> byte), errorState.Sample.Analogue0, errorState.Sample.Analogue1), 
