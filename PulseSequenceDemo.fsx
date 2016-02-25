@@ -17,7 +17,8 @@ open Newtonsoft.Json
 Async.Start <| async {
     let acq = Channel.Channel0
     let laser = Channel.Channel1
-    let uW = Channel.Channel2
+    let uwX = Channel.Channel2
+    let uwY = Channel.Channel3
 
     let pulse = seq { 
         yield Pulse.create      [acq]               10u
@@ -44,7 +45,8 @@ Async.Start <| async {
                            <| (uint32 (DetectionLaserDuration)) }
          |> Pulse.Transform.compensateHardwareDelays [PulseStreamerLaserChannel] (uint32 10)
 
-
+    let turnOnMicrowaves = Seq.singleton (Pulse.create [uwY] 100u)
+    let turnOnLaser = Seq.singleton (Pulse.create [laser] 100u)
     let finalState = Pulse.create [acq] 1000u
     let errorState = Pulse.empty 0u
 
@@ -52,7 +54,9 @@ Async.Start <| async {
 
     let! streamer = PulseStreamer.openDevice("http://192.168.1.100:8050/json-rpc")
     //do! PulseStreamer.PulseSequence.writeSequence pulse 10000000u finalState errorState streamer 
-    //do! PulseStreamer.PulseSequence.writeSequence rS 0u finalState errorState streamer 
-    do! PulseStreamer.PulseSequence.writeSequence stop 10u finalState errorState streamer
+    //do! PulseStreamer.PulseSequence.writeSequence rS 0u finalState errorState streamer
+    //do! PulseStreamer.PulseSequence.writeSequence turnOnMicrowaves 0u finalState errorState streamer 
+    do! PulseStreamer.PulseSequence.writeSequence turnOnLaser 0u finalState errorState streamer
+    //do! PulseStreamer.PulseSequence.writeSequence stop 10u finalState errorState streamer
     printfn "Done..."
 }
