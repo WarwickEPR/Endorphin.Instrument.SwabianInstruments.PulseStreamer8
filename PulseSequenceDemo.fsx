@@ -47,6 +47,7 @@ Async.Start <| async {
 
     let turnOnMicrowaves = Seq.singleton (Pulse.create [uwY] 100u)
     let turnOnLaser = Seq.singleton (Pulse.create [laser] 100u)
+    let turnOnLaserAndMicrowaves = Seq.singleton (Pulse.create [laser; uwX] 100u)
     let finalState = Pulse.create [acq] 1000u
     let errorState = Pulse.empty 0u
 
@@ -56,7 +57,8 @@ Async.Start <| async {
     //do! PulseStreamer.PulseSequence.writeSequence pulse 10000000u finalState errorState streamer 
     //do! PulseStreamer.PulseSequence.writeSequence rS 0u finalState errorState streamer
     //do! PulseStreamer.PulseSequence.writeSequence turnOnMicrowaves 0u finalState errorState streamer 
-    do! PulseStreamer.PulseSequence.writeSequence turnOnLaser 0u finalState errorState streamer
+    //do! PulseStreamer.PulseSequence.writeSequence turnOnLaser 0u finalState errorState streamer
+    do! PulseStreamer.PulseSequence.writeSequence turnOnLaserAndMicrowaves 0u finalState errorState streamer
     //do! PulseStreamer.PulseSequence.writeSequence stop 10u finalState errorState streamer
     printfn "Done..."
 }
