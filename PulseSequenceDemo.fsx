@@ -51,14 +51,36 @@ Async.Start <| async {
     let finalState = Pulse.create [acq] 1000u
     let errorState = Pulse.empty 0u
 
+    let microwaveTest = 
+        seq {
+            yield Pulse.create [Channel1; Channel2] 200u
+            yield Pulse.empty 500u
+        }
+
+    let laserTest = 
+        seq {
+            yield Pulse.create [Channel1] 500u
+            yield Pulse.empty 2000u
+        }
+
     let rS = rabiSequence 100 1 Channel.Channel2 0 1 Channel.Channel0 Channel.Channel1 4000
 
     let! streamer = PulseStreamer.openDevice("http://192.168.1.100:8050/json-rpc")
+
+    let sequence = turnOnLaser //AndMicrowaves
+
+    do! PulseStreamer.PulseSequence.writeSequence
+        <| sequence
+        <| 0u
+        <| finalState
+        <| errorState
+        <| streamer
     //do! PulseStreamer.PulseSequence.writeSequence pulse 10000000u finalState errorState streamer 
     //do! PulseStreamer.PulseSequence.writeSequence rS 0u finalState errorState streamer
     //do! PulseStreamer.PulseSequence.writeSequence turnOnMicrowaves 0u finalState errorState streamer 
+    //do! PulseStreamer.PulseSequence.writeSequence microwaveTest 0u finalState errorState streamer 
     //do! PulseStreamer.PulseSequence.writeSequence turnOnLaser 0u finalState errorState streamer
-    do! PulseStreamer.PulseSequence.writeSequence turnOnLaserAndMicrowaves 0u finalState errorState streamer
+    //do! PulseStreamer.PulseSequence.writeSequence turnOnLaserAndMicrowaves 0u finalState errorState streamer
     //do! PulseStreamer.PulseSequence.writeSequence stop 10u finalState errorState streamer
     printfn "Done..."
 }
