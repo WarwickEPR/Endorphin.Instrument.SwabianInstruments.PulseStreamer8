@@ -27,7 +27,7 @@ Async.Start <| async {
     let turnOnMicrowaves = Seq.singleton (Pulse.create [uwY] 100u)
     let turnOnLaser = Seq.singleton (Pulse.create [laser] 100u)
     let turnOnLaserAndMicrowaves = Seq.singleton (Pulse.create [laser; uwX] 100u)
-    let finalState = Pulse.create [acq] 1000u
+    let finalState = Pulse.create [laser] 1000u
     let errorState = Pulse.empty 0u
 
     let microwaveTest = 
@@ -38,19 +38,22 @@ Async.Start <| async {
 
     let laserTest = 
         seq {
-            yield Pulse.create [Channel1] 500u
-            yield Pulse.empty 2000u
+            yield Pulse.create [Channel1] 10000000u
+            yield Pulse.empty 200000000u
         }
 
     let! streamer = PulseStreamer.openDevice("http://192.168.1.100:8050/json-rpc")
-    let sequence = stop //turnOnLaser //AndMicrowaves
+    let sequence = stop //AndMicrowaves
 
-    do! PulseStreamer.PulseSequence.writeSequence
+    (*do! PulseStreamer.PulseSequence.writeSequence
         <| sequence
-        <| 0u
+        <| 1u
         <| finalState
         <| errorState
-        <| streamer
+        <| Immediate
+        <| streamer*)
+
+    do! PulseStreamer.PulseSequence.setState [laser] streamer
 
     printfn "Done."
 }
