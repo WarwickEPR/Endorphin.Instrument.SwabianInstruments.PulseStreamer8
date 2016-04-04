@@ -6,6 +6,7 @@ open Newtonsoft.Json
 open FifteenBelow.Json
 open Endorphin.Core.Choice
 open System.Collections.Generic
+open Endorphin.Instrument.SwabianInstruments.PulseStreamer8.Parse
 
 module Interface = 
     [<AutoOpen>]
@@ -69,13 +70,21 @@ module Interface =
         |> postToAddress address
         |> deserialiseResponse<string, string>
 
-    let writeSequence sequence (iterations : uint32) finalState errorState address = 
+    let writeSequence sequence (iterations : uint32) finalState errorState (triggerMode : TriggerMode) address = 
         let encodedSequence = Pulse.Encode.encode sequence
 
         createRequest "stream" ( encodedSequence, 
                                    iterations, 
                                    (finalState.Length, ((Parse.channelMask finalState.Sample.Channels) |> byte), finalState.Sample.Analogue0, finalState.Sample.Analogue1), 
                                    (errorState.Length, ((Parse.channelMask errorState.Sample.Channels) |> byte), errorState.Sample.Analogue0, errorState.Sample.Analogue1), 
-                                   false )
+                                   (0 , 0x00, 0u, 0u),
+                                   (triggerEnum triggerMode) )
+        |> postToAddress address
+        |> deserialiseResponse<string, string>
+
+    let setState state address = 
+        let encodedState = Pulse.Encode.encode (Seq.singleton state)
+
+        createRequest "constant" ( encodedState )
         |> postToAddress address
         |> deserialiseResponse<string, string>

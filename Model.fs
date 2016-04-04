@@ -29,6 +29,11 @@ module Model =
         | Channel6
         | Channel7
 
+    type TriggerMode =
+        | Immediate
+        | SoftwareTrigger
+        | HardwareTrigger
+
     type Sample = 
         internal { Channels  : Set<Channel>
                    Analogue0 : int16

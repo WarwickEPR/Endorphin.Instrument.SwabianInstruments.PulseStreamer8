@@ -2,6 +2,11 @@
 
 module internal Parse =
     
+    let triggerEnum = function
+        | Immediate -> 0
+        | SoftwareTrigger -> 1
+        | HardwareTrigger -> 2
+
     let channelEnum = function
         | Channel0 -> ChannelEnum.Channel0
         | Channel1 -> ChannelEnum.Channel1
