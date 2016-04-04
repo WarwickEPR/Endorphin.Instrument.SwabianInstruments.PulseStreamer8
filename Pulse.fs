@@ -54,6 +54,9 @@ module Pulse =
 
     [<AutoOpen>]
     module Encode = 
+        let internal encodeChannels (sm : Sample) = 
+            sm |> Sample.channels |> Parse.channelMask |> byte
+
         /// create a bytestream from the given pulse sequence
         let internal encode (ps : PulseSequence) =
             let uint32ToBigEndian (x : uint32) = Conversion.EndianBitConverter.Big.GetBytes x
@@ -63,7 +66,7 @@ module Pulse =
             |> Seq.map (fun p -> 
                 let bytes = Array.zeroCreate 9
                 bytes.[0..3] <- length p |> uint32ToBigEndian
-                bytes.[4]    <- sample p |> Sample.channels |> Parse.channelMask |> byte
+                bytes.[4]    <- encodeChannels (sample p)
                 bytes.[5..6] <- sample p |> Sample.analogue0 |> shortToBigEndian
                 bytes.[7..8] <- sample p |> Sample.analogue1 |> shortToBigEndian
                 bytes)

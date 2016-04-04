@@ -44,6 +44,7 @@ module Interface =
         let lowercaseSerialiser = Newtonsoft.Json.Serializer.LowercaseJsonSerializer()
 
         let postToAddress address postBody = 
+            printfn "%A" (lowercaseSerialiser.SerializeObject(postBody))
             Http.RequestString(url=address, body=TextRequest(lowercaseSerialiser.SerializeObject(postBody)))
 
         let deserialiseResponse<'T1,'T2> response : Response<'T1,'T2> = 
@@ -75,16 +76,14 @@ module Interface =
 
         createRequest "stream" ( encodedSequence, 
                                    iterations, 
+                                   (0 , 0x00, 0u, 0u),
                                    (finalState.Length, ((Parse.channelMask finalState.Sample.Channels) |> byte), finalState.Sample.Analogue0, finalState.Sample.Analogue1), 
                                    (errorState.Length, ((Parse.channelMask errorState.Sample.Channels) |> byte), errorState.Sample.Analogue0, errorState.Sample.Analogue1), 
-                                   (0 , 0x00, 0u, 0u),
                                    (triggerEnum triggerMode) )
         |> postToAddress address
         |> deserialiseResponse<string, string>
 
     let setState state address = 
-        let encodedState = Pulse.Encode.encode (Seq.singleton state)
-
-        createRequest "constant" ( encodedState )
+        createRequest "constant" [(0x00, Pulse.Encode.encodeChannels (Pulse.sample state), 0u, 0u)]
         |> postToAddress address
         |> deserialiseResponse<string, string>
