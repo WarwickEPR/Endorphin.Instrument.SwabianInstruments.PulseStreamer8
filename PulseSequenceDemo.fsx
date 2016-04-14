@@ -43,7 +43,7 @@ Async.Start <| async {
         }
 
     let! streamer = PulseStreamer.openDevice("http://192.168.1.100:8050/json-rpc")
-    let sequence = stop //AndMicrowaves
+    let sequence =  turnOnLaser //AndMicrowaves
 
     (*do! PulseStreamer.PulseSequence.writeSequence
         <| sequence

@@ -44,7 +44,6 @@ module Interface =
         let lowercaseSerialiser = Newtonsoft.Json.Serializer.LowercaseJsonSerializer()
 
         let postToAddress address postBody = 
-            printfn "%A" (lowercaseSerialiser.SerializeObject(postBody))
             Http.RequestString(url=address, body=TextRequest(lowercaseSerialiser.SerializeObject(postBody)))
 
         let deserialiseResponse<'T1,'T2> response : Response<'T1,'T2> = 
