@@ -47,8 +47,25 @@ Async.Start <| async {
             yield Pulse.create [Channel0; Channel1] 20u
             yield Pulse.create [Channel1] 100000000u }
 
+    let bigRabiSequence = 
+        seq { for i in 0..999 do     
+                yield Pulse.empty 500u
+                yield Pulse.create 
+                    <| [Channel2] 
+                    <| (uint32 (i * 2))
+                yield Pulse.create
+                    <| [Channel1; Channel0]
+                    <| 30u
+                yield Pulse.create 
+                    <| [Channel1]
+                    <| (uint32 (4000)) } 
+        |> List.ofSeq
+        |> Pulse.Transform.compensateHardwareDelays [Channel1; Channel0] (uint32 1280)
+        |> Pulse.Transform.compensateHardwareDelays [Channel2] (uint32 410)
+
     let! streamer = PulseStreamer.openDevice("http://192.168.1.100:8050/json-rpc")
-    let sequence =  picoHarpPulse //AndMicrowaves
+    let sequence =  bigRabiSequence //AndMicrowaves
+    printfn "Sequence length: %d" (Pulse.sequenceLength sequence)
 
     do! PulseStreamer.PulseSequence.writeSequence
         <| sequence

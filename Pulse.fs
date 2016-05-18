@@ -41,7 +41,7 @@ module Pulse =
     let empty length = { Sample = Sample.empty; Length = length }
 
     /// modification functions
-    let withSample sample pulse = { pulse with Sample = sample }
+    let internal withSample sample pulse = { pulse with Sample = sample }
 
     let withLength length pulse = { pulse with Length = length }  
 
@@ -73,77 +73,54 @@ module Pulse =
             |> Array.concat
             |> System.Convert.ToBase64String
 
-    module private Iterator =
-        open System.Collections.Generic
-        
-        type Iterator<'T> = IEnumerator<'T>
-
-        let ofSeq (seq : 'T seq) : Iterator<'T> = seq.GetEnumerator()
-
-        let next (iterator : Iterator<_>) = if iterator.MoveNext() then Some iterator.Current else None
-
-        let current (iterator : Iterator<_>) = iterator.Current
-
     [<AutoOpen>]
     module Transform =
         /// merge neighbouring pulses which have the same active channels and remove zero-length elements
-        let collate (ps : PulseSequence) : PulseSequence = 
-            let rec loop (head, iterator) = seq {
-                match head, Iterator.next iterator with
-                | Some p, Some p' when length p' = 0u       -> yield! loop (Some p, iterator)
-                | Some p, Some p' when sample p = sample p' -> yield! loop (p |> withLength (length p + length p') |> Some, iterator)
-                | Some p, Some p'                           -> yield p ; yield! loop (Some p', iterator)
-                | Some p, None                              -> yield p
-                | None,   Some p                            -> yield! loop (Some p, iterator)
-                | None,   None                              -> () }
-            
-            loop (None, Iterator.ofSeq ps)
+        let collate (ps : PulseSequence) = 
+            let areSimilar p1 p2 = ((p1 |> withLength 0u) = (p2 |> withLength 0u))
 
-       /// combine two pulse sequences assuming the same start time using the given mapping function to combine elements
-        let mapParallel mapping (first : PulseSequence) (second : PulseSequence) : PulseSequence =
+            let rec loop xs (accHead, accTail) =
+                match xs, accHead with
+                | p :: tail, _       when length p = 0u   -> loop tail (accHead, accTail)
+                | p :: tail, Some p' when areSimilar p p' -> loop tail (Some (p |> withLength (length p + length p')), accTail)
+                | p :: tail, Some p'                      -> loop tail (Some p, p' :: accTail)
+                | p :: tail, None                         -> loop tail (Some p, accTail)
+                | [], Some p'                             -> p' :: accTail
+                | [], None                                -> accTail
+
+            loop ps (None, []) |> List.rev
+
+        /// combine two pulse sequences assuming the same start time using the given mapping function to combine elements
+        let mapParallel map (first : PulseSequence) (second : PulseSequence) =
             let subtractLength l p = p |> withLength (length p - l)
 
-            let rec loop (residual1, iterator1) (residual2, iterator2) = seq {
-                let p1 =
-                    match residual1 with
-                    | Some p -> Some p
-                    | None   -> iterator1 |> Iterator.next
-
-                let p2 = 
-                    match residual2 with
-                    | Some p -> Some p
-                    | None   -> iterator2 |> Iterator.next
-
-                match p1, p2 with
-                | Some p1', Some p2' when length p1' < length p2' ->
-                    let residual2' = p2' |> subtractLength (length p1')
-                    yield mapping (sample p1') (sample p2') |> createWithSample (length p1')
-                    yield! loop (None, iterator1) (Some residual2', iterator2)
+            let rec loop list1 list2 acc = 
+                match list1, list2 with
+                | p1 :: tail1, p2 :: tail2 when length p1 < length p2 ->
+                    let p' = map p1 p2 |> withLength (length p1)
+                    let list2' = (p2 |> subtractLength (length p1)) :: tail2
+                    loop tail1 list2' (p' :: acc)
                 
-                | Some p1', Some p2' when length p2' < length p1' ->
-                    let residual1' = p1' |> subtractLength (length p2')
-                    yield mapping (sample p1') (sample p2') |> createWithSample (length p2')
-                    yield! loop (Some residual1', iterator1) (None, iterator2)
+                | p1 :: tail1, p2 :: tail2 when length p1 > length p2 ->
+                    let p' = map p1 p2 |> withLength (length p2)
+                    let list1' = (p1 |> subtractLength (length p2)) :: tail1
+                    loop list1' tail2 (p' :: acc)
 
-                | Some p1', Some p2' ->
-                    yield mapping (sample p1') (sample p2') |> createWithSample (length p1')
-                    yield! loop (None, iterator1) (None, iterator2)
+                | p1 :: tail1, p2 :: tail2 ->
+                    let p' = map p1 p2
+                    loop tail1 tail2 (p' :: acc)
 
-                | Some p1', None -> 
-                    yield mapping (sample p1') Sample.empty |> createWithSample (length p1')
-                    yield! loop (None, iterator1) (None, iterator2)
-                
-                | None, Some p2' ->
-                    yield mapping Sample.empty (sample p2') |> createWithSample (length p2')
-                    yield! loop (None, iterator1) (None, iterator2)
+                | p :: tail, []        -> loop tail [] (p :: acc)
+                | [],        p :: tail -> loop [] tail (p :: acc)
+                | [],        []        -> acc
 
-                | None, None -> () }
-
-            (fun () -> loop (None, Iterator.ofSeq first) (None, Iterator.ofSeq second) |> collate) |> Seq.delay
+            loop first second [] |> List.rev |> collate
 
         /// combine two pulse sequences assuming the same start time and taking the union of the set channels at each element,
         /// whilst keeping the analogue values from the first sequence
-        let unionParallel = mapParallel (fun s1 s2 -> s1 |> Sample.unionChannels (Sample.channelList s2))
+        let unionParallel = mapParallel (fun p1 p2 -> 
+            let unionSample = (Sample.unionChannels (Sample.channelList (sample p2)) (sample p1))
+            createWithSample (length p1) unionSample)
 
         /// apply the given delay to several channels. currently doesn't pay attention to analogue outputs
         let compensateHardwareDelays channelsWithDelay (delay : uint32) (ps : PulseSequence) =
@@ -151,12 +128,10 @@ module Pulse =
             // by delaying the *other* channels in the sequence, having the effect of bringing the 
             // hardware delay channels forward in time.
             let isChannelWithHardwareDelay c = Set.ofList channelsWithDelay |> Set.contains c
-            let hardwareDelayedPart p = p |> withSample (sample p |> Sample.filterChannels isChannelWithHardwareDelay)
+            let hardwareDelayedPart  p  = p |> withSample (sample p |> Sample.filterChannels isChannelWithHardwareDelay)
             let softwareDelayedPart p = p |> withSample (sample p |> Sample.filterChannels (not << isChannelWithHardwareDelay))
 
-            let delayedInSoftware = seq {
-                yield Sample.empty |> createWithSample delay
-                yield! ps |> Seq.map softwareDelayedPart }
+            let delayedInSoftware = (empty delay) :: (ps |> List.map softwareDelayedPart)
+            let delayedInHardware = ps |> List.map hardwareDelayedPart
 
-            let delayedInHardware = ps |> Seq.map hardwareDelayedPart
             unionParallel delayedInHardware delayedInSoftware

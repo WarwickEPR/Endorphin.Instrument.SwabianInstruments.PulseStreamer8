@@ -41,4 +41,4 @@ module Model =
 
     type PulseElement = internal { Sample : Sample ; Length : uint32 }
 
-    type PulseSequence = PulseElement seq
+    type PulseSequence = PulseElement list
