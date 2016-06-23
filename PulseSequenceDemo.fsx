@@ -21,11 +21,12 @@ Async.Start <| async {
     let uwY = Channel.Channel3
 
     let stop = seq {
-        yield Pulse.empty                           1u
-        }
+                    yield Pulse.empty                           1u
+                    } 
+                    |> List.ofSeq
 
     let turnOnMicrowaves = Seq.singleton (Pulse.create [uwY] 100u)
-    let turnOnLaser = Seq.singleton (Pulse.create [laser] 100u)
+    let turnOnLaser = (Seq.singleton (Pulse.create [laser] 100u)) |> List.ofSeq
     let turnOnLaserAndMicrowaves = Seq.singleton (Pulse.create [laser; uwX] 100u)
     let finalState = Pulse.create [laser] 0u
     let errorState = Pulse.empty 0u
@@ -63,8 +64,18 @@ Async.Start <| async {
         |> Pulse.Transform.compensateHardwareDelays [Channel1; Channel0] (uint32 1280)
         |> Pulse.Transform.compensateHardwareDelays [Channel2] (uint32 410)
 
+    let lifetimeSequence = 
+        seq { 
+            yield Pulse.create [Channel1] 50u
+            yield Pulse.empty 10u
+            yield Pulse.create [Channel7] 10u
+            yield Pulse.empty 1000u
+        }
+        |> List.ofSeq
+        |> Pulse.Transform.compensateHardwareDelays [Channel1] (uint32 800)
+
     let! streamer = PulseStreamer.openDevice("http://192.168.1.100:8050/json-rpc")
-    let sequence =  bigRabiSequence //AndMicrowaves
+    let sequence = turnOnLaser// stop //bigRabiSequence //AndMicrowaves
     printfn "Sequence length: %d" (Pulse.sequenceLength sequence)
 
     do! PulseStreamer.PulseSequence.writeSequence
