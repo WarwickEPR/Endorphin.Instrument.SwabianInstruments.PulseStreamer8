@@ -1,13 +1,13 @@
 ﻿// Copyright (c) University of Warwick. All Rights Reserved. Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
 
-#r "../Endorphin.Core/bin/Debug/Endorphin.Core.dll"
-#r "bin/Debug/Endorphin.Instrument.SwabianInstruments.PulseStreamer8.dll"
-#r "../packages/FSharp.Data.2.2.5/lib/net40/Fsharp.Data.dll"
-#r "../packages/Newtonsoft.Json.6.0.8/lib/net45/Newtonsoft.Json.dll"
-#r "../packages/FifteenBelow.Json.0.2.0.12/lib/net40/FifteenBelow.Json.dll"
+#I "../../packages"
+
+#r "bin/Release/Endorphin.Instrument.SwabianInstruments.PulseStreamer8.dll"
+#r "FSharp.Data/lib/net40/Fsharp.Data.dll"
+#r "Newtonsoft.Json/lib/net45/Newtonsoft.Json.dll"
+#r "FifteenBelow.Json/lib/net40/FifteenBelow.Json.dll"
 
 open Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols
-open Endorphin.Core
 open Endorphin.Instrument.SwabianInstruments.PulseStreamer8
 open Endorphin.Instrument.SwabianInstruments.PulseStreamer8.Pulse
 open FifteenBelow.Json
@@ -22,7 +22,7 @@ Async.Start <| async {
 
     let stop = seq {
                     yield Pulse.empty                           1u
-                    } 
+                    }
                     |> List.ofSeq
 
     let turnOnMicrowaves = Seq.singleton (Pulse.create [uwY] 100u)
@@ -31,41 +31,41 @@ Async.Start <| async {
     let finalState = Pulse.create [laser] 0u
     let errorState = Pulse.empty 0u
 
-    let microwaveTest = 
+    let microwaveTest =
         seq {
             yield Pulse.create [Channel1; Channel2] 200u
             yield Pulse.empty 500u
         }
 
-    let laserTest = 
+    let laserTest =
         seq {
             yield Pulse.create [Channel1] 10000000u
             yield Pulse.empty 200000000u
         }
 
-    let picoHarpPulse = 
+    let picoHarpPulse =
         seq {
             yield Pulse.create [Channel0; Channel1] 20u
             yield Pulse.create [Channel1] 100000000u }
 
-    let bigRabiSequence = 
-        seq { for i in 0..999 do     
+    let bigRabiSequence =
+        seq { for i in 0..999 do
                 yield Pulse.empty 500u
-                yield Pulse.create 
-                    <| [Channel2] 
+                yield Pulse.create
+                    <| [Channel2]
                     <| (uint32 (i * 2))
                 yield Pulse.create
                     <| [Channel1; Channel0]
                     <| 30u
-                yield Pulse.create 
+                yield Pulse.create
                     <| [Channel1]
-                    <| (uint32 (4000)) } 
+                    <| (uint32 (4000)) }
         |> List.ofSeq
         |> Pulse.Transform.compensateHardwareDelays [Channel1; Channel0] (uint32 1280)
         |> Pulse.Transform.compensateHardwareDelays [Channel2] (uint32 410)
 
-    let lifetimeSequence = 
-        seq { 
+    let lifetimeSequence =
+        seq {
             yield Pulse.create [Channel1] 50u
             yield Pulse.empty 10u
             yield Pulse.create [Channel7] 10u

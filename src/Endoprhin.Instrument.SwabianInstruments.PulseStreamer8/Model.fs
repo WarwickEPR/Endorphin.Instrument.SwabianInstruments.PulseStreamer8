@@ -1,14 +1,16 @@
-﻿namespace Endorphin.Instrument.SwabianInstruments.PulseStreamer8
+// Copyright (c) University of Warwick. All Rights Reserved. Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
+
+namespace Endorphin.Instrument.SwabianInstruments.PulseStreamer8
 
 open Endorphin.Core.CommandRequestAgent
 
 [<AutoOpen>]
-module Model = 
+module Model =
     type internal PulseStreamer8Identity = { Address : string }
 
     type PulseStreamer8 = internal PulseStreamer8 of agent : CommandRequestAgent<PulseStreamer8Identity>
 
-    type internal ChannelEnum = 
+    type internal ChannelEnum =
         | None     = 0
         | Channel0 = 1
         | Channel1 = 2
@@ -34,7 +36,7 @@ module Model =
         | SoftwareTrigger
         | HardwareTrigger
 
-    type Sample = 
+    type Sample =
         internal { Channels  : Set<Channel>
                    Analogue0 : int16
                    Analogue1 : int16 }

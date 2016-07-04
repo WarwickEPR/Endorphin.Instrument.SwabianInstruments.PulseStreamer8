@@ -1,0 +1,9 @@
+FSharp.Core
+FSharp.Data
+
+Endorphin.Core
+FifteenBelow.Json
+Newtonsoft.Json
+
+File:Endorphin.Core.Choice.fs
+File:Endorphin.Core.Control.fs

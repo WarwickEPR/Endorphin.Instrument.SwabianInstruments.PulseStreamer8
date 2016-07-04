@@ -1,7 +1,9 @@
-﻿namespace Endorphin.Instrument.SwabianInstruments.PulseStreamer8
+// Copyright (c) University of Warwick. All Rights Reserved. Licensed under the Apache License, Version 2.0. See LICENSE.txt in the project root for license information.
+
+namespace Endorphin.Instrument.SwabianInstruments.PulseStreamer8
 
 module internal Parse =
-    
+
     let triggerEnum = function
         | Immediate -> 0
         | SoftwareTrigger -> 1
