@@ -5,7 +5,7 @@ Pulse Streamer 8 signal generator.
 
 Documentation:
 http://WarwickEPR.github.io/Endorphin.Instrument.SwabianInstruments.PulseStreamer8
-More documentation to follow...
+
 
 ## Maintainers
 
